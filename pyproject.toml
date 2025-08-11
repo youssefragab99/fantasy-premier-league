@@ -44,6 +44,7 @@ dependencies = [
     "markupsafe>=3.0.2",
     "sqlalchemy>=2.0.42",
     "typing-extensions>=4.14.1",
+    "requests>=2.32.4",
 ]
 
 [project.urls]
