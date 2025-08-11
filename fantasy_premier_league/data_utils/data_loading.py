@@ -49,20 +49,26 @@ class Player(Base):
 # --- Data Loading Function ---
 
 
-def load_teams_and_players(refresh: bool = True) -> None:
+def load_teams_and_players(refresh: bool = False) -> None:
     """
     Fetches basic FPL data (teams and players) and loads it into the database.
-    By default, it updates existing entries with new data if they have changed.
-    If refresh is False, it only inserts new records.
+    It checks for existing entries to avoid duplicates unless refresh is True.
     
     Args:
-        refresh: If True (default), updates existing data with changes. 
-                 If False, only inserts new records.
+        refresh: If True, deletes all existing data before loading new data.
     """
     print("Starting data load for teams and players...")
     db = SessionLocal()
 
     try:
+        # If refresh is True, delete all existing data
+        if refresh:
+            print("Refresh mode enabled. Deleting all existing data...")
+            db.query(Player).delete()
+            db.query(Team).delete()
+            db.commit()
+            print("Existing data deleted successfully.")
+
         # FPL API endpoint for general information
         url = "https://fantasy.premierleague.com/api/bootstrap-static/"
         response = requests.get(url)
@@ -75,35 +81,25 @@ def load_teams_and_players(refresh: bool = True) -> None:
         print(f"Found {len(teams_data)} teams in the API.")
 
         for team_data in teams_data:
-            existing_team = db.query(Team).filter(Team.id == team_data["id"]).first()
+            # Check if the team already exists in the database (only if not refreshing)
+            if not refresh:
+                existing_team = db.query(Team).filter(Team.id == team_data["id"]).first()
+                if existing_team:
+                    continue
             
-            if existing_team:
-                if refresh:
-                    # Update existing team if data has changed
-                    existing_team.name = team_data["name"]
-                    existing_team.short_name = team_data["short_name"]
-                    existing_team.strength = team_data["strength"]
-                    existing_team.strength_attack_home = team_data["strength_attack_home"]
-                    existing_team.strength_attack_away = team_data["strength_attack_away"]
-                    existing_team.strength_defence_home = team_data["strength_defence_home"]
-                    existing_team.strength_defence_away = team_data["strength_defence_away"]
-                    existing_team.strength_overall_home = team_data["strength_overall_home"]
-                    existing_team.strength_overall_away = team_data["strength_overall_away"]
-            else:
-                # Insert new team
-                new_team = Team(
-                    id=team_data["id"],
-                    name=team_data["name"],
-                    short_name=team_data["short_name"],
-                    strength=team_data["strength"],
-                    strength_attack_home=team_data["strength_attack_home"],
-                    strength_attack_away=team_data["strength_attack_away"],
-                    strength_defence_home=team_data["strength_defence_home"],
-                    strength_defence_away=team_data["strength_defence_away"],
-                    strength_overall_home=team_data["strength_overall_home"],
-                    strength_overall_away=team_data["strength_overall_away"],
-                )
-                db.add(new_team)
+            new_team = Team(
+                id=team_data["id"],
+                name=team_data["name"],
+                short_name=team_data["short_name"],
+                strength=team_data["strength"],
+                strength_attack_home=team_data["strength_attack_home"],
+                strength_attack_away=team_data["strength_attack_away"],
+                strength_defence_home=team_data["strength_defence_home"],
+                strength_defence_away=team_data["strength_defence_away"],
+                strength_overall_home=team_data["strength_overall_home"],
+                strength_overall_away=team_data["strength_overall_away"],
+            )
+            db.add(new_team)
 
         # Commit teams to the database so players can reference them
         db.commit()
@@ -114,29 +110,22 @@ def load_teams_and_players(refresh: bool = True) -> None:
         print(f"Found {len(players_data)} players in the API.")
 
         for player_data in players_data:
-            existing_player = db.query(Player).filter(Player.id == player_data["id"]).first()
+            # Check if the player already exists in the database (only if not refreshing)
+            if not refresh:
+                existing_player = db.query(Player).filter(Player.id == player_data["id"]).first()
+                if existing_player:
+                    continue
             
-            if existing_player:
-                if refresh:
-                    # Update existing player if data has changed
-                    existing_player.first_name = player_data["first_name"]
-                    existing_player.second_name = player_data["second_name"]
-                    existing_player.web_name = player_data["web_name"]
-                    existing_player.team_id = player_data["team"]
-                    existing_player.element_type = player_data["element_type"]
-                    existing_player.now_cost = player_data["now_cost"]
-            else:
-                # Insert new player
-                new_player = Player(
-                    id=player_data["id"],
-                    first_name=player_data["first_name"],
-                    second_name=player_data["second_name"],
-                    web_name=player_data["web_name"],
-                    team_id=player_data["team"],
-                    element_type=player_data["element_type"],
-                    now_cost=player_data["now_cost"],
-                )
-                db.add(new_player)
+            new_player = Player(
+                id=player_data["id"],
+                first_name=player_data["first_name"],
+                second_name=player_data["second_name"],
+                web_name=player_data["web_name"],
+                team_id=player_data["team"],
+                element_type=player_data["element_type"],
+                now_cost=player_data["now_cost"],
+            )
+            db.add(new_player)
 
         # Commit players to the database
         db.commit()
@@ -156,12 +145,12 @@ def load_teams_and_players(refresh: bool = True) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load teams and players data from FPL API")
     parser.add_argument(
-        "--no-refresh", 
+        "--refresh", 
         action="store_true", 
-        help="Only insert new data, don't update existing records"
+        help="Delete all existing data before loading new data"
     )
     
     args = parser.parse_args()
     
     # This will run the function when the script is executed directly
-    load_teams_and_players(refresh=not args.no_refresh)
+    load_teams_and_players(refresh=args.refresh)
