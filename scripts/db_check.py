@@ -21,10 +21,10 @@ def wait_and_connect(database_url: str, timeout_seconds: int = 60) -> int:
     deadline = time.time() + timeout_seconds
     last_error: Exception | None = None
     try:
-        psycopg = importlib.import_module("psycopg")  # type: ignore[assignment]
+        psycopg = importlib.import_module("psycopg2")  # type: ignore[assignment]
     except ModuleNotFoundError:
         print(
-            "psycopg is required. Run inside Docker or install 'psycopg[binary]'.",
+            "psycopg2 is required. Run inside Docker or install 'psycopg2-binary'.",
             file=sys.stderr,
         )
         return 2

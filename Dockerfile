@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copy dependency files first
 COPY pyproject.toml uv.lock ./
 
 # Install UV for faster dependency management
@@ -19,8 +19,7 @@ RUN uv pip install --system --no-cache-dir -e .
 # Copy the entire application
 COPY . .
 
-# Create entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
+# Ensure entrypoint script has execute permissions
 RUN chmod +x /app/entrypoint.sh
 
 # Set the entrypoint

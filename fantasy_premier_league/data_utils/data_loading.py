@@ -1,4 +1,7 @@
 import argparse
+
+# --- Database Setup ---
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -21,21 +24,20 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# --- Database Setup ---
-import os
 
 def get_database_url() -> str:
     """Get database URL from environment variables or defaults."""
     env_url = os.getenv("DATABASE_URL")
     if env_url:
         return env_url
-    
+
     user = os.getenv("POSTGRES_USER", "fpl")
     password = os.getenv("POSTGRES_PASSWORD", "fplpassword")
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "fpldb")
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
+
 
 # Create the SQLAlchemy engine and a session factory
 DATABASE_URL = get_database_url()
@@ -544,11 +546,12 @@ if __name__ == "__main__":
     # Load teams and players data
     print("Loading teams and players data...")
     load_teams_and_players(args.refresh)
-    
+
     # Load player history data
     print("Loading player history data...")
     load_player_history()
-    
+
     # Load historical gameweek data
     print("Loading historical gameweek data from GitHub...")
+    load_historical_gameweek_data_from_github()
     load_historical_gameweek_data_from_github()
