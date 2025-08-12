@@ -3,8 +3,12 @@ from __future__ import annotations
 import os
 from typing import Generator
 
+import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
 
 class Base(DeclarativeBase):
@@ -16,11 +20,11 @@ def get_database_url() -> str:
     if env_url:
         return env_url
     # Fallback to local docker-compose exposed Postgres
-    user = os.getenv("POSTGRES_USER", "fpl")
-    password = os.getenv("POSTGRES_PASSWORD", "fplpassword")
-    host = os.getenv("DB_HOST", "localhost")
-    port = os.getenv("DB_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "fpldb")
+    user = config["db"]["username"]
+    password = config["db"]["password"]
+    host = config["db"]["host"]
+    port = config["db"]["port"]
+    db = config["db"]["db"]
     # Use psycopg2 driver as per pyproject dependency
     return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
 
