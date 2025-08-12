@@ -3,8 +3,6 @@ services:
     image: postgres:16-alpine
     container_name: fpl-postgres
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-fpl}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fplpassword}
@@ -17,25 +15,32 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fpl} -d ${POSTGRES_DB:-fpldb}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: fpl-app
-    env_file:
-      - .env
     environment:
+      # Database connection
       POSTGRES_USER: ${POSTGRES_USER:-fpl}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fplpassword}
       POSTGRES_DB: ${POSTGRES_DB:-fpldb}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fpl}:${POSTGRES_PASSWORD:-fplpassword}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB:-fpldb}
+      
+      # Control data loading behavior
+      SKIP_DATA_LOADING: ${SKIP_DATA_LOADING:-false}
+      KEEP_RUNNING: ${KEEP_RUNNING:-false}
     depends_on:
       db:
         condition: service_healthy
-    command: ["python", "-u", "scripts/db_check.py"]
+    volumes:
+      # Optional: mount for development
+      - ${PWD}:/app:${MOUNT_MODE:-ro}
+    # Remove command since we use entrypoint
 
 volumes:
   pgdata:

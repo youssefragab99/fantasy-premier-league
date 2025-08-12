@@ -45,6 +45,11 @@ dependencies = [
     "sqlalchemy>=2.0.42",
     "typing-extensions>=4.14.1",
     "requests>=2.32.4",
+    "pandas>=2.3.1",
+    "polars>=1.32.2",
+    "chardet>=5.2.0",
+    "pyyaml>=6.0.2",
+    "pyarrow>=21.0.0",
 ]
 
 [project.urls]
