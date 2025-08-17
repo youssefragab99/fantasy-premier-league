@@ -72,7 +72,7 @@ POSTGRES_USER=fpl
 POSTGRES_PASSWORD=fplpassword
 POSTGRES_DB=fpldb
 DB_HOST=db
-DB_PORT=5432
+DB_PORT=5433
 
 # Data Loading Control
 SKIP_DATA_LOADING=false  # Set to true to skip data loading
@@ -86,13 +86,13 @@ Once running, connect to the database:
 ```bash
 # Connection details
 Host: localhost
-Port: 5432
+Port: 5433
 Database: fpldb
 Username: fpl
 Password: fplpassword
 
 # Using psql
-psql postgresql://fpl:fplpassword@localhost:5432/fpldb
+psql postgresql://fpl:fplpassword@localhost:5433/fpldb
 ```
 
 ## 🐳 Docker Commands
