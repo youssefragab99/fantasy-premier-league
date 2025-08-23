@@ -6,15 +6,15 @@ Create Date: 2025-08-11 13:40:00.665379
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "529a87fbd22a"
-down_revision: Union[str, Sequence[str], None] = "76bc4cebde78"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "76bc4cebde78"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # --- MANAGE YOUR AUDITED TABLES HERE ---
 # Simply add or remove table names from this list.
