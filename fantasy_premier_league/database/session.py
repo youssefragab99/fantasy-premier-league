@@ -3,9 +3,30 @@ Database session management for Fantasy Premier League application.
 
 This module provides session handling, context managers, and utility
 functions for database operations using SQLAlchemy.
+
+Usage:
+
+    # Using the context manager function:
+    from fantasy_premier_league.database.session import get_db_session
+
+    with get_db_session() as session:
+        players = session.query(Player).all()
+
+    # Using the DatabaseSession class:
+    from fantasy_premier_league.database.session import DatabaseSession
+
+    with DatabaseSession() as session:
+        teams = session.query(Team).all()
+
+    # Or, for one-off queries:
+    def get_player_count(session):
+        return session.query(Player).count()
+
+    db_session = DatabaseSession()
+    count = db_session.execute_query(get_player_count)
 """
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
 
@@ -47,11 +68,11 @@ class DatabaseSession:
     with automatic commit/rollback on success/failure.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.session_factory = get_session_factory()
         self.session: Session | None = None
 
-    def __enter__(self) -> Session:
+    def __enter__(self) -> Session | None:
         """Enter the session context."""
         self.session = self.session_factory()
         return self.session
@@ -63,18 +84,16 @@ class DatabaseSession:
 
         try:
             if exc_type is None:
-                # No exception occurred, commit the transaction
                 self.session.commit()
             else:
-                # Exception occurred, rollback the transaction
                 self.session.rollback()
         finally:
             self.session.close()
             self.session = None
 
-    def execute_query(self, query_func):
+    def execute_query(self, query_func: Callable[[Session], Any]) -> Any:
         """
-        Execute a query function within a session context.
+        Execute a query function within a managed session context.
 
         Args:
             query_func: Function that takes a session and returns a result

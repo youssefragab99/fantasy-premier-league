@@ -5,8 +5,7 @@ This module defines the Player ORM model representing individual
 football players in the FPL system.
 """
 
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, Float, Integer, String
 
 from .base import Base
 
@@ -23,21 +22,17 @@ class Player(Base):
         is_active: Whether the player is currently active
     """
 
-    __tablename__ = "players"
+    # Remove explicit __tablename__ to let Base generate it automatically
+    id = Column(Integer, primary_key=True)
 
     # Player identification
     name = Column(String(100), nullable=False, index=True)
-    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    team_id = Column(Integer, nullable=False)
 
     # Player attributes
     position = Column(String(3), nullable=False)  # GK, DEF, MID, FWD
     cost = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-
-    # Relationships
-    team = relationship("Team", back_populates="players")
-    gameweek_history = relationship("PlayerGameweekHistory", back_populates="player")
-    season_history = relationship("PlayerSeasonHistory", back_populates="player")
 
     def __repr__(self) -> str:
         """String representation of the player."""

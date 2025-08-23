@@ -19,7 +19,7 @@ def test_imports():
         print("✓ Database package imports successful")
 
         # Test models imports
-        from fantasy_premier_league.models import Base, Gameweek, Player, Team
+        from fantasy_premier_league.models import Base, Player, Team
 
         print("✓ Models imports successful")
 

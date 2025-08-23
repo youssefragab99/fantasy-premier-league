@@ -10,15 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import sessionmaker
 
 
 def load_config() -> dict[str, Any]:
     """Load database configuration from config.yaml file."""
-            config_path = (
-            Path(__file__).parent.parent.parent / "config.yaml"
-        )
+    config_path = Path(__file__).parent.parent.parent / "config.yaml"
 
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -32,7 +30,7 @@ def load_config() -> dict[str, Any]:
 
         return config
     except yaml.YAMLError as e:
-        raise ValueError(f"Error parsing configuration file: {e}")
+        raise ValueError(f"Error parsing configuration file: {e}") from e
 
 
 def get_database_url() -> str:
@@ -70,10 +68,10 @@ def get_database_url() -> str:
         return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
 
     except Exception as e:
-        raise ValueError(f"Failed to construct database URL: {e}")
+        raise ValueError(f"Failed to construct database URL: {e}") from e
 
 
-def get_engine():
+def get_engine() -> Engine:
     """
     Create and return SQLAlchemy engine.
 
@@ -90,7 +88,7 @@ def get_engine():
     )
 
 
-def get_session_factory():
+def get_session_factory() -> sessionmaker:
     """
     Create and return SQLAlchemy session factory.
 

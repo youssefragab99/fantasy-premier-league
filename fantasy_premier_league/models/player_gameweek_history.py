@@ -5,8 +5,7 @@ This module defines the PlayerGameweekHistory ORM model representing
 the performance history of players in individual gameweeks.
 """
 
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, Float, Integer, String
 
 from .base import Base
 
@@ -213,7 +212,7 @@ class PlayerGameweekHistory19_20(Base):
 
     __tablename__ = "player_gameweek_history_2019_20"
 
-    name = Column(String, nullable=True)
+    name = Column(String, nullable=True, primary_key=True)
     assists = Column(Integer, nullable=True)
     bonus = Column(Integer, nullable=True)
     bps = Column(Integer, nullable=True)
@@ -255,7 +254,7 @@ class PlayerGameweekHistory20_21(Base):
 
     __tablename__ = "player_gameweek_history_2020_21"
 
-    name = Column(String, nullable=True)
+    name = Column(String, nullable=True, primary_key=True)
     position = Column(String, nullable=True)
     team = Column(String, nullable=True)
     xP = Column(Float, nullable=True)
