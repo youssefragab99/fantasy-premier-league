@@ -3,27 +3,6 @@ Database session management for Fantasy Premier League application.
 
 This module provides session handling, context managers, and utility
 functions for database operations using SQLAlchemy.
-
-Usage:
-
-    # Using the context manager function:
-    from fantasy_premier_league.database.session import get_db_session
-
-    with get_db_session() as session:
-        players = session.query(Player).all()
-
-    # Using the DatabaseSession class:
-    from fantasy_premier_league.database.session import DatabaseSession
-
-    with DatabaseSession() as session:
-        teams = session.query(Team).all()
-
-    # Or, for one-off queries:
-    def get_player_count(session):
-        return session.query(Player).count()
-
-    db_session = DatabaseSession()
-    count = db_session.execute_query(get_player_count)
 """
 
 from collections.abc import Callable, Generator

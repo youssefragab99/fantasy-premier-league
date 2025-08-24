@@ -38,7 +38,10 @@ def get_database_url() -> str:
     if env_url:
         return env_url
     # Fallback to alembic.ini sqlalchemy.url
-    return config.get_main_option("sqlalchemy.url")
+    fallback_url = config.get_main_option("sqlalchemy.url")
+    if fallback_url is None:
+        raise ValueError("No database URL found in environment or alembic.ini")
+    return fallback_url
 
 
 def run_migrations_offline() -> None:

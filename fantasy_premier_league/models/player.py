@@ -5,7 +5,8 @@ This module defines the Player ORM model representing individual
 football players in the FPL system.
 """
 
-from sqlalchemy import Boolean, Column, Float, Integer, String
+from sqlalchemy import Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
@@ -15,25 +16,32 @@ class Player(Base):
     Player model representing individual football players.
 
     Attributes:
-        name: Player's full name
+        first_name: Player's first name
+        second_name: Player's last name
+        web_name: Player's display name for web
         team_id: ID of the team the player belongs to
-        position: Player's position (GK, DEF, MID, FWD)
-        cost: Player's cost in FPL
-        is_active: Whether the player is currently active
+        element_type: Player's position type (1=GK, 2=DEF, 3=MID, 4=FWD)
+        fpl_id: Original FPL API ID
     """
 
-    # Remove explicit __tablename__ to let Base generate it automatically
-    id = Column(Integer, primary_key=True)
+    __tablename__ = "players"
 
     # Player identification
-    name = Column(String(100), nullable=False, index=True)
-    team_id = Column(Integer, nullable=False)
+    fpl_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    second_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    web_name: Mapped[str] = mapped_column(String(100), nullable=True, index=True)
+    now_cost: Mapped[int] = mapped_column(Integer, nullable=True)
+    team_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Player attributes
-    position = Column(String(3), nullable=False)  # GK, DEF, MID, FWD
-    cost = Column(Float, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    element_type: Mapped[int] = mapped_column(Integer, nullable=False)  # 1=GK, 2=DEF, 3=MID, 4=FWD
 
     def __repr__(self) -> str:
         """String representation of the player."""
-        return f"<Player(name='{self.name}', position='{self.position}', team_id={self.team_id})>"
+        return (
+            f"<Player("
+            f"name='{self.first_name} {self.second_name}', "
+            f"web_name='{self.web_name}', "
+            f"team_id={self.team_id})>"
+        )

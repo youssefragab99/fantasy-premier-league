@@ -5,7 +5,8 @@ This module defines the Team ORM model representing football
 teams in the Premier League.
 """
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
@@ -18,14 +19,22 @@ class Team(Base):
         name: Team name
         short_name: Abbreviated team name
         code: Team code used in FPL
+        fpl_id: Original FPL API ID
     """
 
-    id = Column(Integer, primary_key=True)
+    __tablename__ = "teams"
 
     # Team identification
-    name = Column(String(100), nullable=False, unique=True, index=True)
-    short_name = Column(String(20), nullable=False)
-    code = Column(Integer, nullable=False, unique=True)
+    fpl_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    short_name: Mapped[str] = mapped_column(String(20), nullable=False)
+    code: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    strength_attack_home: Mapped[int] = mapped_column(Integer, nullable=True)
+    strength_attack_away: Mapped[int] = mapped_column(Integer, nullable=True)
+    strength_defence_home: Mapped[int] = mapped_column(Integer, nullable=True)
+    strength_defence_away: Mapped[int] = mapped_column(Integer, nullable=True)
+    strength_overall_home: Mapped[int] = mapped_column(Integer, nullable=True)
+    strength_overall_away: Mapped[int] = mapped_column(Integer, nullable=True)
 
     def __repr__(self) -> str:
         """String representation of the team."""
