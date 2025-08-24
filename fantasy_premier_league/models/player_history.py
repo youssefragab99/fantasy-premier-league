@@ -80,7 +80,7 @@ class PlayerGameweekHistory(Base):
     threat: Mapped[float | None] = mapped_column(Float, nullable=True)
     ict_index: Mapped[float | None] = mapped_column(Float, nullable=True)
     value: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    selected: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    selected: Mapped[BigInteger | None] = mapped_column(BigInteger, nullable=True)
 
     def __repr__(self) -> str:
         """String representation of the gameweek history."""

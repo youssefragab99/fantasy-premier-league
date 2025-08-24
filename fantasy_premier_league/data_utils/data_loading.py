@@ -19,6 +19,16 @@ from sqlalchemy.orm import sessionmaker
 try:
     # When imported as a module
     from ..models.player import Player
+    from ..models.player_gameweek_history import (
+        PlayerGameweekHistory16_17,
+        PlayerGameweekHistory17_18,
+        PlayerGameweekHistory18_19,
+        PlayerGameweekHistory19_20,
+        PlayerGameweekHistory20_21,
+        PlayerGameweekHistory21_22,
+        PlayerGameweekHistory22_23,
+        PlayerGameweekHistory23_24,
+    )
     from ..models.player_history import PlayerGameweekHistory, PlayerSeasonHistory
     from ..models.team import Team
 except ImportError:
@@ -27,6 +37,16 @@ except ImportError:
 
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     from fantasy_premier_league.models.player import Player
+    from fantasy_premier_league.models.player_gameweek_history import (
+        PlayerGameweekHistory16_17,
+        PlayerGameweekHistory17_18,
+        PlayerGameweekHistory18_19,
+        PlayerGameweekHistory19_20,
+        PlayerGameweekHistory20_21,
+        PlayerGameweekHistory21_22,
+        PlayerGameweekHistory22_23,
+        PlayerGameweekHistory23_24,
+    )
     from fantasy_premier_league.models.player_history import (
         PlayerGameweekHistory,
         PlayerSeasonHistory,
@@ -152,7 +172,7 @@ def load_teams_and_players(refresh: bool = False) -> None:
 
 def process_player_history(
     player_id: UUID, total_players: int, current_index: int
-) -> tuple[int, bool, str]:
+) -> tuple[UUID, bool, str]:
     """
     Process a single player's history data.
     This now loads both current season gameweek data and past season summary data.
@@ -335,27 +355,28 @@ def load_player_history() -> None:
 def load_historical_gameweek_data_from_github() -> None:
     """
     NEW: Loads detailed gameweek-by-gameweek data for past seasons
-    from the vaastav/Fantasy-Premier-League GitHub repository.
+    from the vaastav/Fantasy-Premier-League GitHub repository into
+    individual season-specific tables.
     """
     print("\nStarting data load for historical gameweek data from GitHub...")
 
-    # List of past seasons available in the repository
-    PAST_SEASONS = [
-        "2016-17",
-        "2017-18",
-        "2018-19",
-        "2019-20",
-        "2020-21",
-        "2021-22",
-        "2022-23",
-        "2023-24",
-    ]
+    # List of past seasons and their corresponding model classes
+    PAST_SEASONS = {
+        "2016-17": PlayerGameweekHistory16_17,
+        "2017-18": PlayerGameweekHistory17_18,
+        "2018-19": PlayerGameweekHistory18_19,
+        "2019-20": PlayerGameweekHistory19_20,
+        "2020-21": PlayerGameweekHistory20_21,
+        "2021-22": PlayerGameweekHistory21_22,
+        "2022-23": PlayerGameweekHistory22_23,
+        "2023-24": PlayerGameweekHistory23_24,
+    }
 
     total_records_added = 0
     total_records_skipped = 0
     total_errors = 0
 
-    for season in PAST_SEASONS:
+    for season, model_class in PAST_SEASONS.items():
         print(f"Processing season: {season}")
         db = SessionLocal()
         season_records_added = 0
@@ -363,43 +384,17 @@ def load_historical_gameweek_data_from_github() -> None:
         season_errors = 0
 
         try:
-            url = f"https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/{season}/gws/merged_gw.csv"
+            base_url = "https://raw.githubusercontent.com/vaastav/"
+            url = f"{base_url}Fantasy-Premier-League/master/data/{season}/gws/merged_gw.csv"
 
             # Fetch the CSV content with proper encoding handling
-            df = None
-            try:
-                # First try to get the raw content
-                response = requests.get(url, timeout=30)
-                response.raise_for_status()
-
-                # Try different encodings to decode the content
-                encodings = ["utf-8", "latin1", "iso-8859-1", "cp1252", "windows-1252"]
-
-                for encoding in encodings:
-                    try:
-                        # Decode the content with the current encoding
-                        content = response.content.decode(encoding)
-                        # Create DataFrame from the decoded content
-                        df = pd.read_csv(StringIO(content))
-                        print(f"  - Successfully decoded with {encoding} encoding")
-                        break
-                    except (UnicodeDecodeError, pd.errors.ParserError) as e:
-                        print(f"  - Failed to decode with {encoding}: {e}")
-                        continue
-
-                if df is None:
-                    raise Exception("Could not decode CSV with any supported encoding")
-
-            except requests.exceptions.RequestException as e:
-                print(f"  - Could not fetch data for season {season}. Network error: {e}")
-                continue
-            except Exception as e:
-                print(f"  - Could not process data for season {season}. Error: {e}")
+            df = _fetch_csv_data(url, season)
+            if df is None:
                 continue
 
             # Rename columns to match our database schema
             df.rename(
-                columns={"element": "player_id", "fixture": "fixture_id", "GW": "gameweek"},
+                columns={"GW": "round"},
                 inplace=True,
             )
 
@@ -407,88 +402,24 @@ def load_historical_gameweek_data_from_github() -> None:
 
             for index, row in df.iterrows():
                 try:
-                    # Skip records with null opponent_team_id since it's required by database constraint
-                    if pd.isna(row.get("opponent_team")) or row.get("opponent_team") is None:
+                    # Skip records with null opponent_team_id
+                    if _should_skip_record(row):
                         season_records_skipped += 1
                         continue
 
-                    # Create a dictionary of the data for the new row
-                    gw_data = row.to_dict()
-
-                    # Ensure all required columns exist, providing defaults if not
-                    for col in PlayerGameweekHistory.__table__.columns.keys():
-                        if col not in gw_data:
-                            gw_data[col] = None
-
-                    # Convert kickoff_time to datetime object
-                    if pd.notna(gw_data.get("kickoff_time")):
-                        try:
-                            gw_data["kickoff_time"] = datetime.fromisoformat(
-                                str(gw_data["kickoff_time"]).replace("Z", "+00:00")
-                            )
-                        except (ValueError, TypeError):
-                            gw_data["kickoff_time"] = None
-                    else:
-                        gw_data["kickoff_time"] = None
-
-                    gw_data["season"] = season
-
-                    # Map opponent_team to opponent_team_id
-                    gw_data["opponent_team_id"] = gw_data.get("opponent_team")
-
-                    # Drop the id that is in the table model, if present
-                    if "id" in gw_data:
-                        gw_data.pop("id")
-
-                    # Filter only for columns that exist in the table model
-                    model_data = {
-                        key: gw_data[key]
-                        for key in PlayerGameweekHistory.__table__.columns.keys()
-                        if key in gw_data
-                    }
-
-                    # Ensure UUID for id
-                    model_data["id"] = uuid4()
-
-                    # Get the Player UUID by FPL ID instead of using the integer player_id directly
-                    fpl_player_id = model_data.get("player_id")
-                    if fpl_player_id:
-                        player = db.query(Player).filter(Player.fpl_id == fpl_player_id).first()
-                        if player:
-                            model_data["player_id"] = player.id
-                        else:
-                            # Player not found in our database, skip this record
-                            season_records_skipped += 1
-                            continue
-                    else:
-                        # No player_id provided, skip this record
+                    # Process the row data
+                    model_data = _process_row_data(row, model_class, season)
+                    if model_data is None:
                         season_records_skipped += 1
                         continue
 
                     # Try to insert the record
-                    try:
-                        db.add(PlayerGameweekHistory(**model_data))
-                        db.commit()  # Commit each record individually to handle duplicates better
+                    success = _insert_record(db, model_class, model_data, index)
+                    if success == "added":
                         season_records_added += 1
-
-                    except IntegrityError as e:
-                        db.rollback()
-                        if "duplicate key value violates unique constraint" in str(e).lower():
-                            # This is a duplicate record, which is expected - just skip it
-                            season_records_skipped += 1
-                        elif (
-                            "null value in column" in str(e).lower()
-                            and "violates not-null constraint" in str(e).lower()
-                        ):
-                            # Handle null constraint violations
-                            season_records_skipped += 1
-                        else:
-                            # Some other integrity error
-                            print(f"    - Integrity error for row {index}: {e}")
-                            season_errors += 1
-                    except Exception as e:
-                        db.rollback()
-                        print(f"    - Unexpected error for row {index}: {e}")
+                    elif success == "skipped":
+                        season_records_skipped += 1
+                    else:
                         season_errors += 1
 
                 except Exception as e:
@@ -497,7 +428,10 @@ def load_historical_gameweek_data_from_github() -> None:
                     continue
 
             print(
-                f"  - Season {season} completed: {season_records_added} added, {season_records_skipped} skipped, {season_errors} errors"
+                f"  - Season {season} completed: "
+                f"{season_records_added} added, "
+                f"{season_records_skipped} skipped, "
+                f"{season_errors} errors"
             )
 
             total_records_added += season_records_added
@@ -517,6 +451,99 @@ def load_historical_gameweek_data_from_github() -> None:
     print("Database sessions closed.")
 
 
+def _fetch_csv_data(url: str, season: str) -> pd.DataFrame | None:
+    """Fetch and decode CSV data from URL."""
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+
+        # Try different encodings to decode the content
+        encodings = ["utf-8", "latin1", "iso-8859-1", "cp1252", "windows-1252"]
+
+        for encoding in encodings:
+            try:
+                content = response.content.decode(encoding)
+                df = pd.read_csv(StringIO(content))
+                print(f"  - Successfully decoded with {encoding} encoding")
+                return df
+            except (UnicodeDecodeError, pd.errors.ParserError) as e:
+                print(f"  - Failed to decode with {encoding}: {e}")
+                continue
+
+        raise Exception("Could not decode CSV with any supported encoding")
+
+    except requests.exceptions.RequestException as e:
+        print(f"  - Could not fetch data for season {season}. " f"Network error: {e}")
+        return None
+    except Exception as e:
+        print(f"  - Could not process data for season {season}. Error: {e}")
+        return None
+
+
+def _should_skip_record(row: pd.Series) -> bool:
+    """Check if record should be skipped."""
+    return pd.isna(row.get("opponent_team")) or row.get("opponent_team") is None
+
+
+def _process_row_data(row: pd.Series, model_class: type, season: str) -> dict | None:
+    """Process row data into model format."""
+    gw_data = row.to_dict()
+
+    # Ensure all required columns exist, providing defaults if not
+    for col in model_class.__table__.columns:
+        if col.name not in gw_data:
+            gw_data[col.name] = None
+
+    # Convert kickoff_time to datetime object
+    if pd.notna(gw_data.get("kickoff_time")):
+        try:
+            kickoff_str = str(gw_data["kickoff_time"]).replace("Z", "+00:00")
+            gw_data["kickoff_time"] = datetime.fromisoformat(kickoff_str)
+        except (ValueError, TypeError):
+            gw_data["kickoff_time"] = None
+    else:
+        gw_data["kickoff_time"] = None
+
+    gw_data["season"] = season
+
+    # Drop the id that is in the table model, if present
+    if "id" in gw_data:
+        gw_data.pop("id")
+
+    # Filter only for columns that exist in the table model
+    model_data = {
+        key.name: gw_data[key.name] for key in model_class.__table__.columns if key.name in gw_data
+    }
+
+    # Ensure UUID for id
+    model_data["id"] = uuid4()
+
+    return model_data
+
+
+def _insert_record(db, model_class: type, model_data: dict, index: int) -> str:
+    """Insert record into database. Returns 'added', 'skipped', or 'error'."""
+    try:
+        db.add(model_class(**model_data))
+        db.commit()
+        return "added"
+
+    except IntegrityError as e:
+        db.rollback()
+        if "duplicate key value violates unique constraint" in str(e).lower() or (
+            "null value in column" in str(e).lower()
+            and "violates not-null constraint" in str(e).lower()
+        ):
+            return "skipped"
+        else:
+            print(f"    - Integrity error for row {index}: {e}")
+            return "error"
+    except Exception as e:
+        db.rollback()
+        print(f"    - Unexpected error for row {index}: {e}")
+        return "error"
+
+
 # --- Main Execution ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load teams and players data from FPL API")
@@ -531,9 +558,9 @@ if __name__ == "__main__":
     # load_teams_and_players(args.refresh)
 
     # Load player history data
-    print("Loading player history data...")
-    load_player_history()
+    # print("Loading player history data...")
+    # load_player_history()
 
     # # Load historical gameweek data
-    # print("Loading historical gameweek data from GitHub...")
-    # load_historical_gameweek_data_from_github()
+    print("Loading historical gameweek data from GitHub...")
+    load_historical_gameweek_data_from_github()
