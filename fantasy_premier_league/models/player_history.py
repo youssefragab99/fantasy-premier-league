@@ -7,8 +7,17 @@ across gameweeks and seasons.
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, Integer, String, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Uuid,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 
@@ -82,6 +91,14 @@ class PlayerGameweekHistory(Base):
     value: Mapped[int | None] = mapped_column(Integer, nullable=True)
     selected: Mapped[BigInteger | None] = mapped_column(BigInteger, nullable=True)
 
+    # Foreign key to all_players table for standardized name matching
+    all_player_id: Mapped[Uuid | None] = mapped_column(
+        Uuid, ForeignKey("all_players.id"), nullable=True, index=True
+    )
+
+    # Relationships
+    all_player = relationship("AllPlayers")
+
     def __repr__(self) -> str:
         """String representation of the gameweek history."""
         return f"<PlayerGameweekHistory(player_id={self.player_id})>"
@@ -146,6 +163,14 @@ class PlayerSeasonHistory(Base):
     creativity: Mapped[float | None] = mapped_column(Float, nullable=True)
     threat: Mapped[float | None] = mapped_column(Float, nullable=True)
     ict_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Foreign key to all_players table for standardized name matching
+    all_player_id: Mapped[Uuid | None] = mapped_column(
+        Uuid, ForeignKey("all_players.id"), nullable=True, index=True
+    )
+
+    # Relationships
+    all_player = relationship("AllPlayers")
 
     def __repr__(self) -> str:
         """String representation of the season history."""

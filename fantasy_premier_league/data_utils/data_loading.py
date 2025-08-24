@@ -2,6 +2,7 @@ import argparse
 
 # --- Database Setup ---
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -11,9 +12,10 @@ from uuid import UUID, uuid4
 
 import pandas as pd
 import requests
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
+from unidecode import unidecode
 
 # Import the actual models - handle both script and module execution
 try:
@@ -65,6 +67,8 @@ HISTORICAL_SEASONS = [
     "2023_24",
 ]
 
+# HTTP status constants
+HTTP_OK = 200
 
 # --- Name Conversion Functions ---
 
@@ -108,7 +112,7 @@ def remove_trailing_whitespace(name: str) -> str:
 def names_from_season(season: str) -> list[str]:
     """Get all unique player names from a given season."""
     # trunk-ignore(bandit/B608)
-    query = f"SELECT DISTINCT(name) FROM player_gameweek_history_{season}"
+    query = text(f"SELECT DISTINCT(name) FROM player_gameweek_history_{season}")
 
     try:
         with engine.connect() as conn:
@@ -122,7 +126,7 @@ def names_from_season(season: str) -> list[str]:
 
 def get_all_current_player_names() -> list[tuple[str, str]]:
     """Get all current player names and IDs."""
-    query = "SELECT CONCAT(first_name, ' ', second_name) as name, id " "FROM players;"
+    query = text("SELECT CONCAT(first_name, ' ', second_name) as name, id " "FROM players;")
 
     try:
         with engine.connect() as conn:
@@ -134,24 +138,6 @@ def get_all_current_player_names() -> list[tuple[str, str]]:
         return []
 
 
-def create_all_players_table() -> None:
-    """Create the all_players table if it doesn't exist."""
-    create_table_sql = """
-    CREATE TABLE IF NOT EXISTS all_players (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL
-    );
-    """
-
-    try:
-        with engine.connect() as conn:
-            conn.execute(create_table_sql)
-            conn.commit()
-        print("all_players table created/verified successfully.")
-    except Exception as e:
-        print(f"Error creating all_players table: {e}")
-
-
 def write_all_players_to_database(players: list[dict]) -> None:
     """Write players to the all_players table."""
     if not players:
@@ -161,14 +147,14 @@ def write_all_players_to_database(players: list[dict]) -> None:
     try:
         # Clear existing data
         with engine.connect() as conn:
-            conn.execute("DELETE FROM all_players")
+            conn.execute(text("DELETE FROM all_players"))
             conn.commit()
 
         # Insert new data
-        insert_sql = "INSERT INTO all_players (id, name) VALUES (%s, %s)"
+        insert_sql = text("INSERT INTO all_players (id, name) VALUES (:id, :name)")
         with engine.connect() as conn:
             for player in players:
-                conn.execute(insert_sql, (player["id"], player["name"]))
+                conn.execute(insert_sql, {"id": player["id"], "name": player["name"]})
             conn.commit()
 
         print(f"Successfully wrote {len(players)} players to all_players table.")
@@ -179,9 +165,6 @@ def write_all_players_to_database(players: list[dict]) -> None:
 def match_players_across_seasons() -> None:
     """Match players to their IDs across all seasons and populate all_players table."""
     print("\nStarting player matching across all seasons...")
-
-    # Create the all_players table
-    create_all_players_table()
 
     # Get all historical player names
     all_players = []
@@ -362,7 +345,7 @@ def process_player_history(
 
     try:
         with print_lock:
-            print(f"Processing player {current_index + 1}/{total_players} (ID: {player_id})")
+            print(f"Processing player {current_index + 1}/{total_players} " f"(ID: {player_id})")
 
         # Get the player's UUID from the database using fpl_id
         player = db.query(Player).filter(Player.fpl_id == player_id).first()
@@ -378,11 +361,11 @@ def process_player_history(
         response = requests.get(url, timeout=5)
 
         # Skip if player data not found (e.g., transferred out of PL)
-        if response.status_code != 200:
+        if response.status_code != HTTP_OK:
             return (
                 player_id,
                 False,
-                f"Could not fetch data for player {player_id}. Status: {response.status_code}",
+                f"Could not fetch data for player {player_id}. " f"Status: {response.status_code}",
             )
 
         player_history_data = response.json()
@@ -401,7 +384,7 @@ def process_player_history(
             if not existing_gw:
                 gw_model_data = {
                     key: gw_data[key]
-                    for key in PlayerGameweekHistory.__table__.columns.keys()
+                    for key in PlayerGameweekHistory.__table__.columns
                     if key in gw_data
                 }
                 gw_model_data.update(
@@ -438,7 +421,7 @@ def process_player_history(
             if not existing_season:
                 season_model_data = {
                     key: season_data[key]
-                    for key in PlayerSeasonHistory.__table__.columns.keys()
+                    for key in PlayerSeasonHistory.__table__.columns
                     if key in season_data
                 }
                 season_model_data.update(
@@ -462,7 +445,8 @@ def process_player_history(
         return (
             player_id,
             True,
-            f"Successfully processed {gw_records_added} gameweek records and {season_records_added} season records",
+            f"Successfully processed {gw_records_added} gameweek records "
+            f"and {season_records_added} season records",
         )
 
     except requests.exceptions.RequestException as e:
@@ -586,7 +570,7 @@ def load_historical_gameweek_data_from_github() -> None:
                         continue
 
                     # Try to insert the record
-                    success = _insert_record(db, model_class, model_data, index)
+                    success = _insert_record(db, model_class, model_data, int(index))
                     if success == "added":
                         season_records_added += 1
                     elif success == "skipped":
@@ -734,8 +718,8 @@ if __name__ == "__main__":
     # load_player_history()
 
     # # Load historical gameweek data
-    print("Loading historical gameweek data from GitHub...")
-    load_historical_gameweek_data_from_github()
+    # print("Loading historical gameweek data from GitHub...")
+    # load_historical_gameweek_data_from_github()
 
     # Match players across seasons
     match_players_across_seasons()
