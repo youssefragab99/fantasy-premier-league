@@ -50,6 +50,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "pyarrow>=21.0.0",
     "datapackage>=1.15.4",
+    "unidecode>=1.4.0",
 ]
 
 [project.urls]

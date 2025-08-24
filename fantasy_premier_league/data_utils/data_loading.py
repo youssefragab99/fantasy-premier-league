@@ -53,6 +53,178 @@ except ImportError:
     )
     from fantasy_premier_league.models.team import Team
 
+# Constants for historical seasons
+HISTORICAL_SEASONS = [
+    "2016_17",
+    "2017_18",
+    "2018_19",
+    "2019_20",
+    "2020_21",
+    "2021_22",
+    "2022_23",
+    "2023_24",
+]
+
+
+# --- Name Conversion Functions ---
+
+
+def convert_name(name: str) -> str:
+    """Convert a player name to a standard format."""
+    name = remove_underscore(name)
+    name = remove_number(name)
+    name = remove_special_characters(name)
+    name = name_lower(name)
+    name = remove_trailing_whitespace(name)
+    return name
+
+
+def remove_underscore(name: str) -> str:
+    """Remove underscores from a player name."""
+    return name.replace("_", " ")
+
+
+def remove_number(name: str) -> str:
+    """Remove numbers from a player name."""
+    return re.sub(r"\d+", "", name)
+
+
+def remove_special_characters(name: str) -> str:
+    """Remove special characters from a player name."""
+    return unidecode(name)
+
+
+def name_lower(name: str) -> str:
+    """Convert a player name to lowercase."""
+    return name.lower()
+
+
+def remove_trailing_whitespace(name: str) -> str:
+    """Remove trailing whitespace from a player name."""
+    return name.strip()
+
+
+# --- Player Matching Functions ---
+def names_from_season(season: str) -> list[str]:
+    """Get all unique player names from a given season."""
+    # trunk-ignore(bandit/B608)
+    query = f"SELECT DISTINCT(name) FROM player_gameweek_history_{season}"
+
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            names = [row[0] for row in result]
+        return [convert_name(name) for name in names]
+    except Exception as e:
+        print(f"Error getting names from season {season}: {e}")
+        return []
+
+
+def get_all_current_player_names() -> list[tuple[str, str]]:
+    """Get all current player names and IDs."""
+    query = "SELECT CONCAT(first_name, ' ', second_name) as name, id " "FROM players;"
+
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            players = [(row[0], str(row[1])) for row in result]
+        return [(convert_name(name), player_id) for name, player_id in players]
+    except Exception as e:
+        print(f"Error getting current player names: {e}")
+        return []
+
+
+def create_all_players_table() -> None:
+    """Create the all_players table if it doesn't exist."""
+    create_table_sql = """
+    CREATE TABLE IF NOT EXISTS all_players (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL
+    );
+    """
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(create_table_sql)
+            conn.commit()
+        print("all_players table created/verified successfully.")
+    except Exception as e:
+        print(f"Error creating all_players table: {e}")
+
+
+def write_all_players_to_database(players: list[dict]) -> None:
+    """Write players to the all_players table."""
+    if not players:
+        print("No players to write to database.")
+        return
+
+    try:
+        # Clear existing data
+        with engine.connect() as conn:
+            conn.execute("DELETE FROM all_players")
+            conn.commit()
+
+        # Insert new data
+        insert_sql = "INSERT INTO all_players (id, name) VALUES (%s, %s)"
+        with engine.connect() as conn:
+            for player in players:
+                conn.execute(insert_sql, (player["id"], player["name"]))
+            conn.commit()
+
+        print(f"Successfully wrote {len(players)} players to all_players table.")
+    except Exception as e:
+        print(f"Error writing players to database: {e}")
+
+
+def match_players_across_seasons() -> None:
+    """Match players to their IDs across all seasons and populate all_players table."""
+    print("\nStarting player matching across all seasons...")
+
+    # Create the all_players table
+    create_all_players_table()
+
+    # Get all historical player names
+    all_players = []
+    for season in HISTORICAL_SEASONS:
+        season_players = names_from_season(season)
+        all_players.extend(season_players)
+        print(f"Found {len(season_players)} players in season {season}")
+
+    # Convert to set for unique names
+    unique_historical_names = set(all_players)
+    current_players = get_all_current_player_names()
+    current_player_names = set(name for name, _ in current_players)
+
+    # Find players who appear in historical data but not in current players
+    missing_players = unique_historical_names - current_player_names
+
+    print(f"Total historical players: {len(unique_historical_names)}")
+    print(f"Current players: {len(current_player_names)}")
+    print(f"Missing players needing IDs: {len(missing_players)}")
+
+    # Create complete list of all players with IDs
+    all_players_with_ids = []
+
+    # Add current players (keep existing IDs)
+    for name, player_id in current_players:
+        all_players_with_ids.append({"id": player_id, "name": name})
+
+    # Add missing historical players (generate new IDs)
+    for name in missing_players:
+        all_players_with_ids.append({"id": str(uuid4()), "name": name})
+
+    print(f"Total players with IDs: {len(all_players_with_ids)}")
+    print(f"Current players retained: {len(current_players)}")
+    print(f"New IDs generated for missing players: {len(missing_players)}")
+
+    # Display first few entries as example
+    print("\nFirst 5 entries:")
+    for i, player in enumerate(all_players_with_ids[:5]):
+        print(f"{i+1}. {player}")
+
+    # Write to database
+    write_all_players_to_database(all_players_with_ids)
+
 
 def get_database_url() -> str:
     """Get database URL from environment variables or defaults."""
@@ -564,3 +736,6 @@ if __name__ == "__main__":
     # # Load historical gameweek data
     print("Loading historical gameweek data from GitHub...")
     load_historical_gameweek_data_from_github()
+
+    # Match players across seasons
+    match_players_across_seasons()
