@@ -30,6 +30,7 @@ try:
         PlayerGameweekHistory21_22,
         PlayerGameweekHistory22_23,
         PlayerGameweekHistory23_24,
+        PlayerGameweekHistory24_25,
     )
     from ..models.player_history import PlayerGameweekHistory, PlayerSeasonHistory
     from ..models.team import Team
@@ -48,6 +49,7 @@ except ImportError:
         PlayerGameweekHistory21_22,
         PlayerGameweekHistory22_23,
         PlayerGameweekHistory23_24,
+        PlayerGameweekHistory24_25,
     )
     from fantasy_premier_league.models.player_history import (
         PlayerGameweekHistory,
@@ -65,6 +67,7 @@ HISTORICAL_SEASONS = [
     "2021_22",
     "2022_23",
     "2023_24",
+    "2024_25",
 ]
 
 # HTTP status constants
@@ -126,7 +129,9 @@ def names_from_season(season: str) -> list[str]:
 
 def get_all_current_player_names() -> list[tuple[str, str]]:
     """Get all current player names and IDs."""
-    query = text("SELECT CONCAT(first_name, ' ', second_name) as name, id " "FROM players;")
+    query = text(
+        "SELECT CONCAT(first_name, ' ', second_name) as name, id " "FROM players;"
+    )
 
     try:
         with engine.connect() as conn:
@@ -261,7 +266,9 @@ def load_teams_and_players(refresh: bool = False) -> None:
         for team_data in teams_data:
             print(team_data)
             try:
-                existing_team = db.query(Team).filter(Team.fpl_id == team_data["id"]).first()
+                existing_team = (
+                    db.query(Team).filter(Team.fpl_id == team_data["id"]).first()
+                )
                 if existing_team:
                     continue
 
@@ -345,7 +352,10 @@ def process_player_history(
 
     try:
         with print_lock:
-            print(f"Processing player {current_index + 1}/{total_players} " f"(ID: {player_id})")
+            print(
+                f"Processing player {current_index + 1}/{total_players} "
+                f"(ID: {player_id})"
+            )
 
         # Get the player's UUID from the database using fpl_id
         player = db.query(Player).filter(Player.fpl_id == player_id).first()
@@ -365,7 +375,8 @@ def process_player_history(
             return (
                 player_id,
                 False,
-                f"Could not fetch data for player {player_id}. " f"Status: {response.status_code}",
+                f"Could not fetch data for player {player_id}. "
+                f"Status: {response.status_code}",
             )
 
         player_history_data = response.json()
@@ -377,7 +388,11 @@ def process_player_history(
         for gw_data in gameweeks:
             existing_gw = (
                 db.query(PlayerGameweekHistory)
-                .filter_by(player_id=player.id, gameweek=gw_data["round"], season=CURRENT_SEASON)
+                .filter_by(
+                    player_id=player.id,
+                    gameweek=gw_data["round"],
+                    season=CURRENT_SEASON,
+                )
                 .first()
             )
 
@@ -388,23 +403,23 @@ def process_player_history(
                     if key in gw_data
                 }
                 gw_model_data.update(
-                    {
-                        "id": uuid4(),  # Ensure UUID for id
-                        "player_id": player.id,
-                        "gameweek": gw_data["round"],
-                        "season": CURRENT_SEASON,
-                        "fixture_id": gw_data["fixture"],
-                        "opponent_team_id": gw_data["opponent_team"],
-                        "kickoff_time": (
-                            datetime.fromisoformat(gw_data["kickoff_time"].replace("Z", "+00:00"))
-                            if gw_data.get("kickoff_time")
-                            else None
-                        ),
-                        "influence": float(gw_data["influence"]),
-                        "creativity": float(gw_data["creativity"]),
-                        "threat": float(gw_data["threat"]),
-                        "ict_index": float(gw_data["ict_index"]),
-                    }
+                    id=uuid4(),  # Ensure UUID for id
+                    player_id=player.id,
+                    gameweek=gw_data["round"],
+                    season=CURRENT_SEASON,
+                    fixture_id=gw_data["fixture"],
+                    opponent_team_id=gw_data["opponent_team"],
+                    kickoff_time=(
+                        datetime.fromisoformat(
+                            gw_data["kickoff_time"].replace("Z", "+00:00")
+                        )
+                        if gw_data.get("kickoff_time")
+                        else None
+                    ),
+                    influence=float(gw_data["influence"]),
+                    creativity=float(gw_data["creativity"]),
+                    threat=float(gw_data["threat"]),
+                    ict_index=float(gw_data["ict_index"]),
                 )
                 db.add(PlayerGameweekHistory(**gw_model_data))
                 gw_records_added += 1
@@ -425,14 +440,12 @@ def process_player_history(
                     if key in season_data
                 }
                 season_model_data.update(
-                    {
-                        "id": uuid4(),  # Ensure UUID for id
-                        "player_id": player.id,
-                        "influence": float(season_data["influence"]),
-                        "creativity": float(season_data["creativity"]),
-                        "threat": float(season_data["threat"]),
-                        "ict_index": float(season_data["ict_index"]),
-                    }
+                    id=uuid4(),  # Ensure UUID for id
+                    player_id=player.id,
+                    influence=float(season_data["influence"]),
+                    creativity=float(season_data["creativity"]),
+                    threat=float(season_data["threat"]),
+                    ict_index=float(season_data["ict_index"]),
                 )
                 db.add(PlayerSeasonHistory(**season_model_data))
                 season_records_added += 1
@@ -488,7 +501,9 @@ def load_player_history() -> None:
     with ThreadPoolExecutor(max_workers=32) as executor:
         # Submit all tasks
         future_to_player = {
-            executor.submit(process_player_history, player_fpl_id, total_players, i): player_fpl_id
+            executor.submit(
+                process_player_history, player_fpl_id, total_players, i
+            ): player_fpl_id
             for i, player_fpl_id in enumerate(player_fpl_ids)
         }
 
@@ -526,6 +541,7 @@ def load_historical_gameweek_data_from_github() -> None:
         "2021-22": PlayerGameweekHistory21_22,
         "2022-23": PlayerGameweekHistory22_23,
         "2023-24": PlayerGameweekHistory23_24,
+        "2024-25": PlayerGameweekHistory24_25,
     }
 
     total_records_added = 0
@@ -546,7 +562,12 @@ def load_historical_gameweek_data_from_github() -> None:
             # Fetch the CSV content with proper encoding handling
             df = _fetch_csv_data(url, season)
             if df is None:
+                # Try to diagnose the issue
+                _diagnose_csv_issues(url, season)
                 continue
+
+            # Clean the fetched data
+            df = _clean_csv_data(df, season)
 
             # Rename columns to match our database schema
             df.rename(
@@ -570,7 +591,7 @@ def load_historical_gameweek_data_from_github() -> None:
                         continue
 
                     # Try to insert the record
-                    success = _insert_record(db, model_class, model_data, int(index))
+                    success = _insert_record(db, model_class, model_data, index if isinstance(index, int) else int(index))
                     if success == "added":
                         season_records_added += 1
                     elif success == "skipped":
@@ -619,14 +640,121 @@ def _fetch_csv_data(url: str, season: str) -> pd.DataFrame | None:
         for encoding in encodings:
             try:
                 content = response.content.decode(encoding)
-                df = pd.read_csv(StringIO(content))
-                print(f"  - Successfully decoded with {encoding} encoding")
-                return df
+
+                # Try to read CSV with more flexible parsing options
+                try:
+                    # First attempt: standard parsing
+                    df = pd.read_csv(StringIO(content))
+                    print(f"  - Successfully decoded with {encoding} encoding")
+                    return df
+                except pd.errors.ParserError as e:
+                    print(
+                        f"  - Standard parsing failed with {encoding}, trying flexible parsing: {e}"
+                    )
+
+                    # Second attempt: flexible parsing with error handling
+                    try:
+                        df = pd.read_csv(
+                            StringIO(content),
+                            on_bad_lines="skip",  # Skip problematic lines
+                            engine="python",  # Use Python engine for better error handling
+                            quoting=3,  # QUOTE_NONE - disable quote parsing
+                            escapechar="\\",  # Handle escape characters
+                            sep=None,  # Auto-detect separator
+                            encoding_errors="ignore",  # Ignore encoding errors
+                        )
+                        print(
+                            f"  - Successfully decoded with {encoding} encoding using flexible parsing"
+                        )
+                        return df
+                    except Exception as flex_e:
+                        print(
+                            f"  - Flexible parsing also failed with {encoding}: {flex_e}"
+                        )
+                        continue
+
             except (UnicodeDecodeError, pd.errors.ParserError) as e:
                 print(f"  - Failed to decode with {encoding}: {e}")
                 continue
 
-        raise Exception("Could not decode CSV with any supported encoding")
+        # If all encodings fail, try a more aggressive approach
+        print("  - All standard encodings failed, trying aggressive parsing...")
+        try:
+            # Use chardet to detect encoding
+            import chardet
+
+            detected = chardet.detect(response.content)
+            detected_encoding = (
+                detected["encoding"] if detected["encoding"] else "utf-8"
+            )
+            print(
+                f"  - Detected encoding: {detected_encoding} (confidence: {detected['confidence']:.2f})"
+            )
+
+            content = response.content.decode(detected_encoding, errors="ignore")
+
+            # Try with very permissive settings
+            df = pd.read_csv(
+                StringIO(content),
+                on_bad_lines="skip",
+                engine="python",
+                quoting=3,
+                escapechar="\\",
+                sep=None,
+                encoding_errors="ignore",
+                low_memory=False,
+            )
+            print(
+                f"  - Successfully decoded with detected encoding {detected_encoding}"
+            )
+            return df
+
+        except Exception as e:
+            print(f"  - Aggressive parsing also failed: {e}")
+
+        # If all parsing methods fail, try to save the file locally for manual inspection
+        print(
+            "  - All parsing methods failed, saving file locally for manual inspection..."
+        )
+        try:
+            import tempfile
+
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(
+                mode="wb", suffix=".csv", delete=False
+            ) as f:
+                f.write(response.content)
+                temp_path = f.name
+
+            print(f"  - Saved problematic CSV to: {temp_path}")
+            print(f"  - File size: {len(response.content)} bytes")
+
+            # Try one more time with the most permissive settings possible
+            try:
+                df = pd.read_csv(
+                    temp_path,
+                    on_bad_lines="skip",
+                    engine="python",
+                    quoting=3,
+                    escapechar="\\",
+                    sep=None,
+                    encoding_errors="ignore",
+                    low_memory=False,
+                )
+                print(
+                    "  - Successfully parsed with local file and most permissive settings"
+                )
+                return df
+            except Exception as final_e:
+                print(f"  - Final parsing attempt also failed: {final_e}")
+                print(f"  - Please manually inspect the file at: {temp_path}")
+
+        except Exception as save_e:
+            print(f"  - Could not save file locally: {save_e}")
+
+        raise Exception(
+            "Could not decode CSV with any supported encoding or parsing method"
+        )
 
     except requests.exceptions.RequestException as e:
         print(f"  - Could not fetch data for season {season}. " f"Network error: {e}")
@@ -636,6 +764,134 @@ def _fetch_csv_data(url: str, season: str) -> pd.DataFrame | None:
         return None
 
 
+def _clean_csv_data(df: pd.DataFrame, season: str) -> pd.DataFrame:
+    """Clean and validate CSV data to handle inconsistencies."""
+    if df is None or df.empty:
+        return df
+
+    print(f"  - Original data shape: {df.shape}")
+    print(f"  - Original columns: {list(df.columns)}")
+
+    # Remove completely empty rows
+    df = df.dropna(how="all")
+
+    # Remove rows where all required fields are missing
+    required_fields = ["name", "round", "team", "opponent_team"]
+    df = df.dropna(subset=required_fields, how="all")
+
+    # Handle inconsistent column counts by standardizing columns
+    # Get the most common column count
+    column_counts = df.count(axis=1)
+    most_common_count = column_counts.mode().iloc[0] if not column_counts.empty else 0
+
+    print(f"  - Most common column count: {most_common_count}")
+
+    # If we have inconsistent column counts, try to fix by dropping problematic rows
+    if column_counts.std() > 0:
+        print(f"  - Column count standard deviation: {column_counts.std():.2f}")
+        print(
+            f"  - Rows with different column counts: {len(column_counts[column_counts != most_common_count])}"
+        )
+
+        # Keep only rows with the most common column count
+        df = df[column_counts == most_common_count]
+        print(f"  - After filtering by column count: {df.shape}")
+
+    # Clean column names
+    df.columns = df.columns.str.strip()
+
+    # Remove any completely empty columns
+    df = df.dropna(axis=1, how="all")
+
+    # Fill NaN values with appropriate defaults
+    df = df.fillna(
+        {
+            "minutes": 0,
+            "goals_scored": 0,
+            "assists": 0,
+            "clean_sheets": 0,
+            "goals_conceded": 0,
+            "own_goals": 0,
+            "penalties_saved": 0,
+            "penalties_missed": 0,
+            "yellow_cards": 0,
+            "red_cards": 0,
+            "saves": 0,
+            "bonus": 0,
+            "bps": 0,
+            "influence": 0.0,
+            "creativity": 0.0,
+            "threat": 0.0,
+            "ict_index": 0.0,
+            "total_points": 0,
+            "value": 0,
+            "transfers_balance": 0,
+            "selected": 0,
+            "transfers_in": 0,
+            "transfers_out": 0,
+        }
+    )
+
+    print(f"  - Cleaned data shape: {df.shape}")
+    print(f"  - Cleaned columns: {list(df.columns)}")
+
+    return df
+
+
+def _diagnose_csv_issues(url: str, season: str) -> None:
+    """Diagnose CSV issues by examining the raw content."""
+    try:
+        print(f"  - Diagnosing CSV issues for season {season}...")
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+
+        # Check the first few lines to understand the structure
+        content = response.content.decode("utf-8", errors="ignore")
+        lines = content.split("\n")
+
+        print(f"  - Total lines in file: {len(lines)}")
+        print(f"  - First line (headers): {lines[0] if lines else 'No content'}")
+
+        # Check for problematic lines around line 14180 (from the error)
+        problem_line = 14180
+        if len(lines) > problem_line:
+            print(f"  - Line {problem_line}: {lines[problem_line-1]}")
+            print(f"  - Line {problem_line+1}: {lines[problem_line]}")
+            print(f"  - Line {problem_line+2}: {lines[problem_line+1]}")
+
+        # Count fields in first few lines to establish baseline
+        for i in range(min(5, len(lines))):
+            if lines[i]:
+                field_count = len(lines[i].split(","))
+                print(f"  - Line {i+1} has {field_count} fields")
+
+        # Check for lines with different field counts
+        field_counts = []
+        for i, line in enumerate(lines[:100]):  # Check first 100 lines
+            if line.strip():
+                field_counts.append((i + 1, len(line.split(","))))
+
+        # Find lines with different field counts
+        if field_counts:
+            baseline_count = field_counts[0][1]
+            problematic_lines = [
+                (line_num, count)
+                for line_num, count in field_counts
+                if count != baseline_count
+            ]
+            if problematic_lines:
+                print(
+                    f"  - Found {len(problematic_lines)} lines with different field counts in first 100 lines:"
+                )
+                for line_num, count in problematic_lines[:10]:  # Show first 10
+                    print(
+                        f"    - Line {line_num}: {count} fields (expected {baseline_count})"
+                    )
+
+    except Exception as e:
+        print(f"  - Error during diagnosis: {e}")
+
+
 def _should_skip_record(row: pd.Series) -> bool:
     """Check if record should be skipped."""
     return pd.isna(row.get("opponent_team")) or row.get("opponent_team") is None
@@ -643,38 +899,115 @@ def _should_skip_record(row: pd.Series) -> bool:
 
 def _process_row_data(row: pd.Series, model_class: type, season: str) -> dict | None:
     """Process row data into model format."""
-    gw_data = row.to_dict()
+    try:
+        gw_data = row.to_dict()
 
-    # Ensure all required columns exist, providing defaults if not
-    for col in model_class.__table__.columns:
-        if col.name not in gw_data:
-            gw_data[col.name] = None
+        # Ensure all required columns exist, providing defaults if not
+        for col in model_class.__table__.columns:
+            if col.name not in gw_data:
+                gw_data[col.name] = None
 
-    # Convert kickoff_time to datetime object
-    if pd.notna(gw_data.get("kickoff_time")):
-        try:
-            kickoff_str = str(gw_data["kickoff_time"]).replace("Z", "+00:00")
-            gw_data["kickoff_time"] = datetime.fromisoformat(kickoff_str)
-        except (ValueError, TypeError):
+        # Convert kickoff_time to datetime object
+        if pd.notna(gw_data.get("kickoff_time")):
+            try:
+                kickoff_str = str(gw_data["kickoff_time"]).replace("Z", "+00:00")
+                # Handle various datetime formats
+                if "T" in kickoff_str:
+                    gw_data["kickoff_time"] = datetime.fromisoformat(kickoff_str)
+                else:
+                    # Try parsing common date formats
+                    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"]:
+                        try:
+                            gw_data["kickoff_time"] = datetime.strptime(
+                                kickoff_str, fmt
+                            )
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        gw_data["kickoff_time"] = None
+            except (ValueError, TypeError):
+                gw_data["kickoff_time"] = None
+        else:
             gw_data["kickoff_time"] = None
-    else:
-        gw_data["kickoff_time"] = None
 
-    gw_data["season"] = season
+        gw_data["season"] = season
 
-    # Drop the id that is in the table model, if present
-    if "id" in gw_data:
-        gw_data.pop("id")
+        # Drop the id that is in the table model, if present
+        if "id" in gw_data:
+            gw_data.pop("id")
 
-    # Filter only for columns that exist in the table model
-    model_data = {
-        key.name: gw_data[key.name] for key in model_class.__table__.columns if key.name in gw_data
-    }
+        # Filter only for columns that exist in the table model
+        model_data = {
+            key.name: gw_data[key.name]
+            for key in model_class.__table__.columns
+            if key.name in gw_data
+        }
 
-    # Ensure UUID for id
-    model_data["id"] = uuid4()
+        # Ensure UUID for id
+        model_data["id"] = uuid4()
 
-    return model_data
+        # Validate required fields
+        required_fields = ["name", "round", "team", "opponent_team"]
+        for field in required_fields:
+            if field in model_data and pd.isna(model_data[field]):
+                print(f"    - Warning: Required field '{field}' is missing for row")
+                return None
+
+        # Convert numeric fields to appropriate types
+        numeric_fields = [
+            "minutes",
+            "goals_scored",
+            "assists",
+            "clean_sheets",
+            "goals_conceded",
+            "own_goals",
+            "penalties_saved",
+            "penalties_missed",
+            "yellow_cards",
+            "red_cards",
+            "saves",
+            "bonus",
+            "bps",
+            "influence",
+            "creativity",
+            "threat",
+            "ict_index",
+            "total_points",
+            "value",
+            "transfers_balance",
+            "selected",
+            "transfers_in",
+            "transfers_out",
+        ]
+
+        for field in numeric_fields:
+            if field in model_data:
+                try:
+                    if pd.isna(model_data[field]):
+                        model_data[field] = 0
+                    # Convert to numeric, handling string values
+                    elif isinstance(model_data[field], str):
+                        # Remove any non-numeric characters except decimal points and minus signs
+                        cleaned_value = "".join(
+                            c
+                            for c in str(model_data[field])
+                            if c.isdigit() or c in ".-"
+                        )
+                        if cleaned_value:
+                            model_data[field] = float(cleaned_value)
+                        else:
+                            model_data[field] = 0
+                    else:
+                        model_data[field] = float(model_data[field])
+                except (ValueError, TypeError):
+                    model_data[field] = 0
+
+        return model_data
+
+    except Exception as e:
+        print(f"    - Error processing row data: {e}")
+        return None
 
 
 def _insert_record(db, model_class: type, model_data: dict, index: int) -> str:
@@ -702,24 +1035,28 @@ def _insert_record(db, model_class: type, model_data: dict, index: int) -> str:
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Load teams and players data from FPL API")
+    parser = argparse.ArgumentParser(
+        description="Load teams and players data from FPL API"
+    )
     parser.add_argument(
-        "--refresh", action="store_true", help="Delete all existing data before loading new data"
+        "--refresh",
+        action="store_true",
+        help="Delete all existing data before loading new data",
     )
 
     args = parser.parse_args()
 
     # Load teams and players data
-    # print("Loading teams and players data...")
-    # load_teams_and_players(args.refresh)
+    print("Loading teams and players data...")
+    load_teams_and_players(args.refresh)
 
     # Load player history data
-    # print("Loading player history data...")
-    # load_player_history()
+    print("Loading player history data...")
+    load_player_history()
 
     # # Load historical gameweek data
-    # print("Loading historical gameweek data from GitHub...")
-    # load_historical_gameweek_data_from_github()
+    print("Loading historical gameweek data from GitHub...")
+    load_historical_gameweek_data_from_github()
 
     # Match players across seasons
     match_players_across_seasons()
