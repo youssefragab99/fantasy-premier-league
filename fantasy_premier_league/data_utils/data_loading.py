@@ -3,6 +3,7 @@ import argparse
 # --- Database Setup ---
 import os
 import re
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -409,6 +410,7 @@ def process_player_history(
                     season=CURRENT_SEASON,
                     fixture_id=gw_data["fixture"],
                     opponent_team_id=gw_data["opponent_team"],
+                    total_points=gw_data["total_points"],
                     kickoff_time=(
                         datetime.fromisoformat(
                             gw_data["kickoff_time"].replace("Z", "+00:00")
@@ -569,12 +571,6 @@ def load_historical_gameweek_data_from_github() -> None:
             # Clean the fetched data
             df = _clean_csv_data(df, season)
 
-            # Rename columns to match our database schema
-            df.rename(
-                columns={"GW": "round"},
-                inplace=True,
-            )
-
             print(f"  - Found {len(df)} records in CSV")
 
             for index, row in df.iterrows():
@@ -591,7 +587,12 @@ def load_historical_gameweek_data_from_github() -> None:
                         continue
 
                     # Try to insert the record
-                    success = _insert_record(db, model_class, model_data, index if isinstance(index, int) else int(index))
+                    success = _insert_record(
+                        db,
+                        model_class,
+                        model_data,
+                        index if isinstance(index, int) else int(index),
+                    )
                     if success == "added":
                         season_records_added += 1
                     elif success == "skipped":
@@ -717,7 +718,6 @@ def _fetch_csv_data(url: str, season: str) -> pd.DataFrame | None:
             "  - All parsing methods failed, saving file locally for manual inspection..."
         )
         try:
-            import tempfile
 
             # Create a temporary file
             with tempfile.NamedTemporaryFile(
@@ -775,8 +775,8 @@ def _clean_csv_data(df: pd.DataFrame, season: str) -> pd.DataFrame:
     # Remove completely empty rows
     df = df.dropna(how="all")
 
-    # Remove rows where all required fields are missing
-    required_fields = ["name", "round", "team", "opponent_team"]
+    # Remove rows where all required fields are missing (team is now optional)
+    required_fields = ["name", "round", "opponent_team"]
     df = df.dropna(subset=required_fields, how="all")
 
     # Handle inconsistent column counts by standardizing columns
@@ -829,6 +829,7 @@ def _clean_csv_data(df: pd.DataFrame, season: str) -> pd.DataFrame:
             "selected": 0,
             "transfers_in": 0,
             "transfers_out": 0,
+            "was_home": False,
         }
     )
 
@@ -933,6 +934,24 @@ def _process_row_data(row: pd.Series, model_class: type, season: str) -> dict | 
 
         gw_data["season"] = season
 
+        # Handle was_home column
+        if "was_home" not in gw_data or pd.isna(gw_data.get("was_home")):
+            gw_data["was_home"] = False
+        else:
+            # Convert was_home to boolean
+            was_home_value = gw_data["was_home"]
+            if isinstance(was_home_value, str):
+                gw_data["was_home"] = was_home_value.lower() in [
+                    "true",
+                    "1",
+                    "yes",
+                    "home",
+                ]
+            elif isinstance(was_home_value, (int, float)):
+                gw_data["was_home"] = bool(was_home_value)
+            else:
+                gw_data["was_home"] = bool(was_home_value)
+
         # Drop the id that is in the table model, if present
         if "id" in gw_data:
             gw_data.pop("id")
@@ -947,8 +966,8 @@ def _process_row_data(row: pd.Series, model_class: type, season: str) -> dict | 
         # Ensure UUID for id
         model_data["id"] = uuid4()
 
-        # Validate required fields
-        required_fields = ["name", "round", "team", "opponent_team"]
+        # Validate required fields (team is now optional)
+        required_fields = ["name", "round", "opponent_team"]
         for field in required_fields:
             if field in model_data and pd.isna(model_data[field]):
                 print(f"    - Warning: Required field '{field}' is missing for row")
@@ -979,6 +998,8 @@ def _process_row_data(row: pd.Series, model_class: type, season: str) -> dict | 
             "selected",
             "transfers_in",
             "transfers_out",
+            "GW",
+            "round",
         ]
 
         for field in numeric_fields:
@@ -1051,8 +1072,8 @@ if __name__ == "__main__":
     load_teams_and_players(args.refresh)
 
     # Load player history data
-    print("Loading player history data...")
-    load_player_history()
+    # print("Loading player history data...")
+    # load_player_history()
 
     # # Load historical gameweek data
     print("Loading historical gameweek data from GitHub...")

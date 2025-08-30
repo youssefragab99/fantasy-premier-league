@@ -132,6 +132,7 @@ def update_historical_season_tables(all_players_mapping) -> tuple[int, int]:
         "player_gameweek_history_2021_22",
         "player_gameweek_history_2022_23",
         "player_gameweek_history_2023_24",
+        "player_gameweek_history_2024_25",
     ]
 
     total_updated = 0
